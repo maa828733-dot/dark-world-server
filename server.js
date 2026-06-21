@@ -8,36 +8,38 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// الاتصال بقاعدة البيانات
+// الربط بقاعدة البيانات
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ DB Connection Error:', err));
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.error('❌ DB Connection Error:', err));
 
 app.get('/', (req, res) => {
-    res.send('🚀 DARK WORLD SERVER IS LIVE AND PROTECTED!');
+    res.send('🚀 DARK WORLD SERVER IS LIVE AND WAITING!');
 });
 
 app.post('/generate-token', async (req, res) => {
-    try {
-        const { user_id, item_sku } = req.body;
-        const auth = Buffer.from(`${process.env.XSOLLA_MERCHANT_ID}:${process.env.XSOLLA_API_KEY}`).toString('base64');
+    const { user_id, item_sku } = req.body;
+    
+    const m_id = process.env.XSOLLA_MERCHANT_ID;
+    const a_key = process.env.XSOLLA_API_KEY;
+    const p_id = process.env.XSOLLA_PROJECT_ID;
 
+    const auth = Buffer.from(`${m_id}:${a_key}`).toString('base64');
+
+    try {
         const response = await axios.post(
-            `https://api.xsolla.com/merchant/v2/merchants/${process.env.XSOLLA_MERCHANT_ID}/token`,
+            `https://api.xsolla.com/merchant/v2/merchants/${m_id}/token`,
             {
                 user: { id: { value: user_id } },
-                settings: {
-                    project_id: parseInt(process.env.XSOLLA_PROJECT_ID),
-                    mode: 'production'   // ✅ الآن الدفع حقيقي
-                },
+                settings: { project_id: parseInt(p_id), mode: 'production' },
                 purchase: { list: [{ sku: item_sku, quantity: 1 }] }
             },
             { headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' } }
         );
         res.json({ token: response.data.token });
     } catch (error) {
-        console.error('Xsolla Error:', error.response?.data || error.message);
-        res.status(500).json({ error: 'Failed to generate token' });
+        console.error('❌ Xsolla API Error:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Xsolla Error', details: error.response?.data });
     }
 });
 
