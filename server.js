@@ -1,58 +1,29 @@
-app.post('/generate-token', async (req, res) => {
-    const { user_id, item_sku } = req.body;
-
-    const m_id = process.env.XSOLLA_MERCHANT_ID;
-    const a_key = process.env.XSOLLA_API_KEY;
-    const p_id = process.env.XSOLLA_PROJECT_ID;
-
-    const auth = Buffer.from(`${m_id}:${a_key}`).toString('base64');
-
+// --- 5. استقبال إشعار نجاح الدفع (Webhook) ---
+app.post('/webhook', express.raw({ type: '*/*' }), (req, res) => {
     try {
-        const response = await axios.post(
-            `https://api.xsolla.com/merchant/v2/merchants/${m_id}/token`,
-            {
-                user: {
-                    id: { value: user_id },
-                    name: { value: "Agent_" + user_id }
-                },
-                settings: {
-                    project_id: parseInt(p_id),
-                    mode: 'sandbox',
-                    return_url: "https://4a731.netlify.app",
-                    currency: "USD"
-                },
-                purchase: {
-                    checkout: {
-                        currency: "USD"
-                    },
-                    mode: "payment",
-                    custom_parameters: {
-                        user_id: user_id
-                    },
-                    list: [
-                        {
-                            sku: item_sku,
-                            quantity: 1
-                        }
-                    ]
-                }
-            },
-            {
-                headers: {
-                    "Authorization": `Basic ${auth}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
+        const payload = req.body.toString();
+        const signature = req.headers['authorization'];
+        const secret = process.env.XSOLLA_WEBHOOK_SECRET;
 
-        console.log("TOKEN:", response.data.token);
-        res.json({ token: response.data.token });
+        const crypto = require('crypto');
+        const hash = crypto.createHmac('sha1', secret).update(payload).digest('base64');
 
-    } catch (error) {
-        console.error("XSOLLA ERROR:", error.response?.data || error.message);
-        res.status(500).json({
-            error: "Failed to generate token",
-            details: error.response?.data
-        });
+        if (hash !== signature) {
+            console.log('❌ Webhook signature mismatch!');
+            return res.status(403).send('Invalid signature');
+        }
+
+        const data = JSON.parse(payload);
+
+        if (data.notification_type === 'payment') {
+            const uid = data.user.id;
+            const sku = data.purchase.list[0].sku;
+            console.log(`💰 دفع ناجح! اللاعب ${uid} اشترى ${sku}`);
+        }
+
+        res.status(204).send();
+    } catch (err) {
+        console.error('❌ Webhook Error:', err);
+        res.status(500).send();
     }
 });
