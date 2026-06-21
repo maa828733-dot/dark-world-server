@@ -1,29 +1,34 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const app = express();
+const mongoose = require('mongoose');
+require('dotenv').config();
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-const MERCHANT_ID = process.env.XSOLLA_MERCHANT_ID;
-const API_KEY = process.env.XSOLLA_API_KEY;
-const PROJECT_ID = process.env.XSOLLA_PROJECT_ID;
+// الاتصال بقاعدة البيانات
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('✅ MongoDB Connected'))
+    .catch(err => console.error('❌ DB Connection Error:', err));
 
-app.get('/', (req, res) => res.send('🚀 DARK WORLD SERVER IS LIVE!'));
+app.get('/', (req, res) => {
+    res.send('🚀 DARK WORLD SERVER IS LIVE AND PROTECTED!');
+});
 
 app.post('/generate-token', async (req, res) => {
-    const { user_id, item_sku } = req.body;
-    const auth = Buffer.from(`${MERCHANT_ID}:${API_KEY}`).toString('base64');
-
     try {
+        const { user_id, item_sku } = req.body;
+        const auth = Buffer.from(`${process.env.XSOLLA_MERCHANT_ID}:${process.env.XSOLLA_API_KEY}`).toString('base64');
+
         const response = await axios.post(
-            `https://api.xsolla.com/merchant/v2/merchants/${MERCHANT_ID}/token`,
+            `https://api.xsolla.com/merchant/v2/merchants/${process.env.XSOLLA_MERCHANT_ID}/token`,
             {
                 user: { id: { value: user_id } },
                 settings: {
-                    project_id: parseInt(PROJECT_ID),
-                    mode: 'production'   // ✅ تم التعديل إلى الدفع الحقيقي
+                    project_id: parseInt(process.env.XSOLLA_PROJECT_ID),
+                    mode: 'production'   // ✅ الآن الدفع حقيقي
                 },
                 purchase: { list: [{ sku: item_sku, quantity: 1 }] }
             },
@@ -31,7 +36,8 @@ app.post('/generate-token', async (req, res) => {
         );
         res.json({ token: response.data.token });
     } catch (error) {
-        res.status(500).json({ error: 'Xsolla Error', details: error.response?.data });
+        console.error('Xsolla Error:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to generate token' });
     }
 });
 
