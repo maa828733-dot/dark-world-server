@@ -10,15 +10,10 @@ const MERCHANT_ID = process.env.XSOLLA_MERCHANT_ID;
 const API_KEY = process.env.XSOLLA_API_KEY;
 const PROJECT_ID = process.env.XSOLLA_PROJECT_ID;
 
-app.get('/', (req, res) => res.send('🚀 DARK WORLD REAL PAYMENT SERVER IS LIVE!'));
+app.get('/', (req, res) => res.send('🚀 DARK WORLD SERVER IS LIVE!'));
 
 app.post('/generate-token', async (req, res) => {
     const { user_id, item_sku } = req.body;
-
-    if (!MERCHANT_ID || !API_KEY || !PROJECT_ID) {
-        return res.status(500).json({ error: 'متغيرات Xsolla غير موجودة' });
-    }
-
     const auth = Buffer.from(`${MERCHANT_ID}:${API_KEY}`).toString('base64');
 
     try {
@@ -28,17 +23,15 @@ app.post('/generate-token', async (req, res) => {
                 user: { id: { value: user_id } },
                 settings: {
                     project_id: parseInt(PROJECT_ID),
-                    mode: 'production'
+                    mode: 'production'   // ✅ تم التعديل إلى الدفع الحقيقي
                 },
                 purchase: { list: [{ sku: item_sku, quantity: 1 }] }
             },
             { headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' } }
         );
-
         res.json({ token: response.data.token });
     } catch (error) {
-        console.error('خطأ Xsolla:', error.response?.data || error.message);
-        res.status(500).json({ error: 'فشل الاتصال ببوابة Xsolla' });
+        res.status(500).json({ error: 'Xsolla Error', details: error.response?.data });
     }
 });
 
